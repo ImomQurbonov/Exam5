@@ -1,43 +1,35 @@
-import os, asyncio, re, time
-from aiogram import Bot, Dispatcher
-from aiogram.types import Message, FSInputFile
+import asyncio, os
+from aiogram import Bot
 from aiogram.filters import CommandStart
+from aiogram.types import Message, FSInputFile
 from dotenv import load_dotenv
-from playwright.sync_api import sync_playwright
+from celery_app import send_information_for_three_hours
+from dispatcher import dp
 
 load_dotenv()
 
-dp = Dispatcher()
-
-TOKEN = os.getenv("BOT_TOKEN")
-bot = Bot(TOKEN)
 
 @dp.message(CommandStart())
-async def startup(message: Message):
-    first_name = message.from_user.first_name
-    await message.answer(f'Hello {first_name}')
+async def start_bot(message: Message):
+    await message.answer(f"Assalomu alaykum {message.from_user.first_name}")
+    await message.answer(f"kun.uz botimizga xush kelibsiz \n So\'nggi jahon yangiliklari --> /news")
 
 
-async def news(message: Message):
-    caption = f"Published on {time}\n\n{news_text}"
-    await bot.send_photo(chat_id=image_url, photo=image_url, caption=caption)
+data = send_information_for_three_hours()
 
 
 @dp.message(lambda msg: msg.text == '/news')
-async def send_news(message: Message):
-    with (sync_playwright() as play):
-        browser = play.firefox.find_all(class_='news-container')
-        for article in browser:
-            date_time = article.find(class_='date').text.strip()
-            news_time = re.search(r'\d{2}:\d{2}', date_time).group(0)
-            current_time = time.struct_time('%H:%M')
-            if news_time == current_time:
-                headline = article.find('a').text.strip()
-                image_url = article.find('img')['src']
-                await message.answer(image_url, date_time, headline)
+async def send_information(message: Message):
+    s = data["date"], data["year"], data["info1"], *data["info2"]
+    print(s)
+    photo = FSInputFile('kun_uz_image.png', filename='screenshot')
+    await message.answer_photo(photo)
+    await message.answer(str(s).replace(',', '').replace('(', '').replace(')', '').replace("'", ''))
 
 
 async def main():
+    token = os.getenv('BOT_TOKEN')
+    bot = Bot(token)
     await dp.start_polling(bot)
 
 
